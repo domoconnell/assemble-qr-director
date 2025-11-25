@@ -1,6 +1,5 @@
 const express = require('express');
-const session = require('express-session');
-const SQLiteStore = require('connect-sqlite3')(session);
+const cookieParser = require('cookie-parser');
 const fs = require('fs');
 const path = require('path');
 const { loginPage, adminPage } = require('./views/templates');
@@ -11,35 +10,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin'; // set in env in prod
+const COOKIE_SECRET = process.env.COOKIE_SECRET || 'super-secret-change-me';
 const LINKS_FILE = path.join(__dirname, 'links.json');
 
 // --- Basic middleware ---
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
-
-// Ensure data directory exists for SQLite session store
-const dataDir = path.join(__dirname, 'data');
-if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-}
-
-app.use(
-    session({
-        store: new SQLiteStore({
-            db: 'sessions.db',
-            dir: './data',
-        }),
-        secret: process.env.SESSION_SECRET || 'super-secret-change-me',
-        resave: false,
-        saveUninitialized: false,
-        cookie: {
-            httpOnly: true,
-            maxAge: 1000 * 60 * 60 * 24, // 24 hours
-            sameSite: 'lax',
-            secure: process.env.NODE_ENV === 'production',
-        },
-    })
-);
+app.use(cookieParser(COOKIE_SECRET));
 
 let links = {};
 
@@ -65,7 +42,7 @@ loadLinks();
 
 // --- Auth middleware ---
 function requireAuth(req, res, next) {
-    if (req.session && req.session.loggedIn) {
+    if (req.signedCookies.authenticated === 'true') {
         return next();
     }
     return res.redirect('/admin/login');
@@ -115,7 +92,14 @@ app.get('/admin/login', (req, res) => {
 app.post('/admin/login', (req, res) => {
     const { username, password } = req.body;
     if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-        req.session.loggedIn = true;
+        // Set a signed cookie that expires in 24 hours
+        res.cookie('authenticated', 'true', {
+            signed: true,
+            httpOnly: true,
+            maxAge: 1000 * 60 * 60 * 24, // 24 hours
+            sameSite: 'lax',
+            secure: process.env.NODE_ENV === 'production',
+        });
         return res.redirect('/admin');
     }
     setNoCache(res);
@@ -123,9 +107,8 @@ app.post('/admin/login', (req, res) => {
 });
 
 app.get('/admin/logout', (req, res) => {
-    req.session.destroy(() => {
-        res.redirect('/admin/login');
-    });
+    res.clearCookie('authenticated');
+    res.redirect('/admin/login');
 });
 
 app.get('/admin', requireAuth, (req, res) => {
