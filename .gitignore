@@ -170,4 +170,7 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
+# Session storage
+sessions/
+
 # End of https://www.toptal.com/developers/gitignore/api/node,osx

@@ -1,5 +1,6 @@
 const express = require('express');
 const session = require('express-session');
+const FileStore = require('session-file-store')(session);
 const fs = require('fs');
 const path = require('path');
 const { loginPage, adminPage } = require('./views/templates');
@@ -9,20 +10,28 @@ const app = express();
 // --- Config ---
 const PORT = process.env.PORT || 3000;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin'; // set in env in prod
 const LINKS_FILE = path.join(__dirname, 'links.json');
 
+// --- Basic middleware ---
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
 app.use(
     session({
+        store: new FileStore({
+            path: path.join(__dirname, 'sessions'),
+            ttl: 86400, // 24 hours in seconds
+            retries: 0,
+        }),
         secret: process.env.SESSION_SECRET || 'super-secret-change-me',
         resave: false,
         saveUninitialized: false,
         cookie: {
             httpOnly: true,
+            maxAge: 1000 * 60 * 60 * 24, // 24 hours
             sameSite: 'lax',
+            secure: process.env.NODE_ENV === 'production', // HTTPS only in production
         },
     })
 );
