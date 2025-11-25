@@ -45,7 +45,7 @@ function loginPage(error = null) {
             </svg>
           </div>
           <h2 class="text-3xl font-bold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">
-            QR Admin Login
+            QR Director Login
           </h2>
           <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
             Sign in to manage your QR redirects
@@ -175,7 +175,7 @@ function adminPage(links) {
                 </svg>
               </div>
               <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">
-                QR Admin
+                QR Director
               </h1>
             </div>
             <div class="flex items-center gap-3">
@@ -395,7 +395,7 @@ function adminPage(links) {
     </script>
   `;
 
-  return layout('QR Admin Dashboard', content, true);
+  return layout('QR Director Dashboard', content, true);
 }
 
 module.exports = {
