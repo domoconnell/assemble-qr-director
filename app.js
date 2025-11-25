@@ -54,7 +54,7 @@ function loadLinks() {
 
     // Ensure default link exists
     if (!links._default) {
-        links._default = { url: 'https://www.google.com', name: 'Default', favorite: false };
+        links._default = { url: 'https://www.assemblechurch.com', name: 'Default', favorite: false };
         saveLinks();
     } else if (typeof links._default === 'string') {
         links._default = { url: links._default, name: 'Default', favorite: false };
@@ -91,7 +91,7 @@ function setNoCache(res) {
 }
 
 app.get('/', (req, res) => {
-    const defaultLink = links._default || { url: 'https://www.google.com' };
+    const defaultLink = links._default || { url: 'https://www.assemblechurch.com' };
     const defaultUrl = typeof defaultLink === 'string' ? defaultLink : defaultLink.url;
     setNoCache(res);
     return res.redirect(302, defaultUrl);

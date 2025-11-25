@@ -115,7 +115,7 @@ function loginPage(error = null) {
 }
 
 function adminPage(links) {
-  const defaultLink = links._default || { url: 'https://www.google.com' };
+  const defaultLink = links._default || { url: 'https://www.assemblechurch.com' };
   const defaultUrl = typeof defaultLink === 'string' ? defaultLink : defaultLink.url;
   const regularLinks = Object.entries(links).filter(([slug]) => slug !== '_default');
 
@@ -354,7 +354,7 @@ function adminPage(links) {
                     id="url-input"
                     name="url"
                     required
-                    placeholder="https://yourchurchsite.com/giving"
+                    placeholder="https://www.assemblechurch.com"
                     class="block w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200"
                   />
                   <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
