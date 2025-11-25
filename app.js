@@ -17,6 +17,12 @@ const LINKS_FILE = path.join(__dirname, 'links.json');
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
+// Ensure data directory exists for SQLite session store
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+}
+
 app.use(
     session({
         store: new SQLiteStore({
