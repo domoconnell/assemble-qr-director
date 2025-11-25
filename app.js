@@ -36,7 +36,16 @@ function loadLinks() {
 }
 
 function saveLinks() {
-    fs.writeFileSync(LINKS_FILE, JSON.stringify(links, null, 2), 'utf-8');
+    try {
+        // Write to a temporary file first, then rename (atomic operation)
+        const tempFile = LINKS_FILE + '.tmp';
+        fs.writeFileSync(tempFile, JSON.stringify(links, null, 2), 'utf-8');
+        fs.renameSync(tempFile, LINKS_FILE);
+    } catch (err) {
+        console.error('Error saving links:', err);
+        // Try direct write as fallback
+        fs.writeFileSync(LINKS_FILE, JSON.stringify(links, null, 2), 'utf-8');
+    }
 }
 
 loadLinks();
@@ -113,6 +122,8 @@ app.get('/admin/logout', (req, res) => {
 });
 
 app.get('/admin', requireAuth, (req, res) => {
+    // Reload links from file to ensure we have the latest data
+    loadLinks();
     setNoCache(res);
     res.send(adminPage(links));
 });
@@ -179,6 +190,11 @@ app.get('/admin/qr/:slug', requireAuth, async (req, res) => {
         ctx.beginPath();
         ctx.arc(bgX, bgY, bgSize / 2, 0, Math.PI * 2);
         ctx.fill();
+
+        // Add border to make it look integrated with QR code
+        ctx.strokeStyle = '#1d1d1b';
+        ctx.lineWidth = 2;
+        ctx.stroke();
 
         // Draw logo
         ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
