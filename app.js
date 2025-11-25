@@ -1,6 +1,6 @@
 const express = require('express');
 const session = require('express-session');
-const JSONStore = require('express-session-json')(session);
+const SQLiteStore = require('connect-sqlite3')(session);
 const fs = require('fs');
 const path = require('path');
 const { loginPage, adminPage } = require('./views/templates');
@@ -12,12 +12,6 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin'; // set in env in prod
 const LINKS_FILE = path.join(__dirname, 'links.json');
-const SESSIONS_DIR = path.join(__dirname, 'sessions');
-
-// --- Ensure sessions directory exists ---
-if (!fs.existsSync(SESSIONS_DIR)) {
-    fs.mkdirSync(SESSIONS_DIR, { recursive: true });
-}
 
 // --- Basic middleware ---
 app.use(express.urlencoded({ extended: true }));
@@ -25,8 +19,9 @@ app.use(express.static('public'));
 
 app.use(
     session({
-        store: new JSONStore({
-            path: SESSIONS_DIR,
+        store: new SQLiteStore({
+            db: 'sessions.db',
+            dir: './data',
         }),
         secret: process.env.SESSION_SECRET || 'super-secret-change-me',
         resave: false,
@@ -159,5 +154,5 @@ app.post('/admin/delete', requireAuth, (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`QR app listening on port ${PORT}`);
+    console.log(`QR app listening on port ${PORT} `);
 });
