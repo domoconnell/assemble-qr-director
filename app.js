@@ -12,6 +12,12 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin'; // set in env in prod
 const LINKS_FILE = path.join(__dirname, 'links.json');
+const SESSIONS_DIR = path.join(__dirname, 'sessions');
+
+// --- Ensure sessions directory exists ---
+if (!fs.existsSync(SESSIONS_DIR)) {
+    fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+}
 
 // --- Basic middleware ---
 app.use(express.urlencoded({ extended: true }));
@@ -20,7 +26,7 @@ app.use(express.static('public'));
 app.use(
     session({
         store: new JSONStore({
-            path: path.join(__dirname, 'sessions'),
+            path: SESSIONS_DIR,
         }),
         secret: process.env.SESSION_SECRET || 'super-secret-change-me',
         resave: false,
@@ -29,7 +35,7 @@ app.use(
             httpOnly: true,
             maxAge: 1000 * 60 * 60 * 24, // 24 hours
             sameSite: 'lax',
-            secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+            secure: process.env.NODE_ENV === 'production',
         },
     })
 );
