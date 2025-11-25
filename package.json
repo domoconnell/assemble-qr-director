@@ -1,0 +1,33 @@
+{
+  "name": "assemble-qr-director",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build:css": "npx tailwindcss -i ./styles.css -o ./public/output.css",
+    "watch:css": "npx tailwindcss -i ./styles.css -o ./public/output.css --watch",
+    "dev": "npm run build:css && node app.js",
+    "start": "node app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/domoconnell/assemble-qr-director.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/domoconnell/assemble-qr-director/issues"
+  },
+  "homepage": "https://github.com/domoconnell/assemble-qr-director#readme",
+  "dependencies": {
+    "express": "^5.1.0",
+    "express-session": "^1.18.2",
+    "fs-extra": "^11.3.2"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.22",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.18"
+  }
+}
