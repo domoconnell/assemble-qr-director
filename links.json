@@ -1,5 +1,17 @@
 {
-  "_default": "https://www.assemblechurch.com",
-  "1ty67u": "https://www.assemblechurch.com/giving",
-  "test": "https://www.google.com"
+  "_default": {
+    "url": "https://www.assemblechurch.com",
+    "name": "",
+    "favorite": false
+  },
+  "1ty67u": {
+    "url": "https://www.assemblechurch.com/giving",
+    "name": "Chairs",
+    "favorite": true
+  },
+  "qzciv": {
+    "url": "https://www.google.com",
+    "name": "Giving Card",
+    "favorite": true
+  }
 }

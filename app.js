@@ -24,11 +24,27 @@ let links = {};
 // --- Load/Save links functions ---
 // Links are stored in memory and persisted to file on changes
 // File is ONLY read at server startup, not during normal operation
+// Link structure: { url: string, name?: string, favorite?: boolean }
 function loadLinks() {
     if (fs.existsSync(LINKS_FILE)) {
         try {
             const raw = fs.readFileSync(LINKS_FILE, 'utf-8');
             links = JSON.parse(raw || '{}');
+
+            // Migrate old format (string URLs) to new format (objects)
+            let needsSave = false;
+            for (const [slug, value] of Object.entries(links)) {
+                if (typeof value === 'string') {
+                    links[slug] = { url: value, name: '', favorite: false };
+                    needsSave = true;
+                }
+            }
+
+            if (needsSave) {
+                console.log('[STARTUP] Migrated old link format to new format');
+                saveLinks();
+            }
+
             console.log(`[STARTUP] Loaded ${Object.keys(links).length} links from file`);
         } catch (err) {
             console.error('[STARTUP] Error loading links file:', err);
@@ -41,7 +57,10 @@ function loadLinks() {
 
     // Ensure default link exists
     if (!links._default) {
-        links._default = 'https://www.google.com';
+        links._default = { url: 'https://www.google.com', name: 'Default', favorite: false };
+        saveLinks();
+    } else if (typeof links._default === 'string') {
+        links._default = { url: links._default, name: 'Default', favorite: false };
         saveLinks();
     }
 }
@@ -76,7 +95,8 @@ function setNoCache(res) {
 }
 
 app.get('/', (req, res) => {
-    const defaultUrl = links._default || 'https://www.google.com';
+    const defaultLink = links._default || { url: 'https://www.google.com' };
+    const defaultUrl = typeof defaultLink === 'string' ? defaultLink : defaultLink.url;
     setNoCache(res);
     return res.redirect(302, defaultUrl);
 });
@@ -91,15 +111,16 @@ app.get('/:slug', (req, res, next) => {
         return res.status(404).send('QR code not found');
     }
 
-    const target = links[slug];
+    const linkData = links[slug];
 
-    if (!target) {
+    if (!linkData) {
         setNoCache(res);
         return res.status(404).send('QR code not found');
     }
 
+    const targetUrl = typeof linkData === 'string' ? linkData : linkData.url;
     setNoCache(res);
-    return res.redirect(302, target);
+    return res.redirect(302, targetUrl);
 });
 
 app.get('/admin/login', (req, res) => {
@@ -136,7 +157,7 @@ app.get('/admin', requireAuth, (req, res) => {
 });
 
 app.post('/admin/save', requireAuth, (req, res) => {
-    const { slug, url } = req.body;
+    const { slug, url, name } = req.body;
 
     if (!slug || !url) {
         return res.status(400).send('Slug and URL are required');
@@ -144,8 +165,16 @@ app.post('/admin/save', requireAuth, (req, res) => {
 
     const cleanSlug = slug.trim();
     const cleanUrl = url.trim();
+    const cleanName = (name || '').trim();
 
-    links[cleanSlug] = cleanUrl;
+    // Preserve favorite status if updating existing link
+    const existingFavorite = links[cleanSlug]?.favorite || false;
+
+    links[cleanSlug] = {
+        url: cleanUrl,
+        name: cleanName,
+        favorite: existingFavorite
+    };
     saveLinks();
 
     res.redirect('/admin');
@@ -223,8 +252,40 @@ app.post('/admin/delete', requireAuth, (req, res) => {
         delete links[slug];
         saveLinks();
     }
-    saveLinks();
     res.redirect('/admin');
+});
+
+app.post('/admin/toggle-favorite', requireAuth, (req, res) => {
+    const { slug } = req.body;
+    if (slug && links[slug]) {
+        const linkData = links[slug];
+        linkData.favorite = !linkData.favorite;
+        saveLinks();
+    }
+    res.redirect('/admin');
+});
+
+// Generate a random slug that doesn't exist
+app.get('/admin/generate-slug', requireAuth, (req, res) => {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let slug;
+    let attempts = 0;
+    const maxAttempts = 100;
+
+    do {
+        const length = Math.floor(Math.random() * 4) + 5; // 5-8 characters
+        slug = '';
+        for (let i = 0; i < length; i++) {
+            slug += chars[Math.floor(Math.random() * chars.length)];
+        }
+        attempts++;
+    } while (links[slug] && attempts < maxAttempts);
+
+    if (attempts >= maxAttempts) {
+        return res.status(500).json({ error: 'Could not generate unique slug' });
+    }
+
+    res.json({ slug });
 });
 
 app.listen(PORT, () => {

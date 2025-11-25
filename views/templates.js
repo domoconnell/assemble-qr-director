@@ -115,16 +115,49 @@ function loginPage(error = null) {
 }
 
 function adminPage(links) {
-  const defaultUrl = links._default || 'https://www.google.com';
+  const defaultLink = links._default || { url: 'https://www.google.com' };
+  const defaultUrl = typeof defaultLink === 'string' ? defaultLink : defaultLink.url;
   const regularLinks = Object.entries(links).filter(([slug]) => slug !== '_default');
 
+  // Sort links: favorites first, then alphabetically
+  regularLinks.sort(([slugA, dataA], [slugB, dataB]) => {
+    const favoriteA = dataA.favorite || false;
+    const favoriteB = dataB.favorite || false;
+
+    if (favoriteA && !favoriteB) return -1;
+    if (!favoriteA && favoriteB) return 1;
+    return slugA.localeCompare(slugB);
+  });
+
   const rows = regularLinks
-    .map(([slug, url]) => `
+    .map(([slug, linkData]) => {
+      const url = typeof linkData === 'string' ? linkData : linkData.url;
+      const name = typeof linkData === 'string' ? '' : (linkData.name || '');
+      const favorite = typeof linkData === 'string' ? false : (linkData.favorite || false);
+
+      return `
       <tr class="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors duration-150">
         <td class="px-6 py-4">
-          <code class="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-sm font-mono">
-            ${slug}
-          </code>
+          <div class="flex items-center gap-2">
+            <form method="post" action="/admin/toggle-favorite" style="display:inline">
+              <input type="hidden" name="slug" value="${slug}" />
+              <button
+                type="submit"
+                class="text-yellow-500 hover:text-yellow-600 dark:text-yellow-400 dark:hover:text-yellow-300 transition-colors"
+                title="${favorite ? 'Remove from favorites' : 'Add to favorites'}"
+              >
+                <svg class="h-5 w-5 ${favorite ? 'fill-current' : ''}" fill="${favorite ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+                </svg>
+              </button>
+            </form>
+            <div class="inline-flex items-center gap-2">
+              <code class="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-sm font-mono">
+                ${slug}
+              </code>
+              ${name ? `<span class="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs font-medium">${name}</span>` : ''}
+            </div>
+          </div>
         </td>
         <td class="px-6 py-4">
           <a href="${url}" target="_blank" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline break-all">
@@ -147,7 +180,7 @@ function adminPage(links) {
           <div class="flex gap-2">
             <button
               type="button"
-              onclick="editLink('${slug}', '${url.replace(/'/g, "\\'")}')"
+              onclick="editLink('${slug}', '${url.replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}')"
               class="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-150"
             >
               <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -171,7 +204,8 @@ function adminPage(links) {
           </div>
         </td>
       </tr>
-    `)
+    `;
+    })
     .join('');
 
   const content = `
@@ -256,50 +290,6 @@ function adminPage(links) {
             </div>
           </div>
 
-          <!-- Existing links section -->
-          <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in">
-            <div class="px-6 py-5 border-b border-gray-200 dark:border-gray-700">
-              <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                Existing Links
-              </h2>
-              <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                Manage your QR code redirects
-              </p>
-            </div>
-            <div class="overflow-x-auto">
-              <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead class="bg-gray-50 dark:bg-gray-900/50">
-                  <tr>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Slug
-                    </th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Target URL
-                    </th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      QR Code
-                    </th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  ${rows || `
-                    <tr>
-                      <td colspan="4" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                        <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
-                        </svg>
-                        <p class="text-sm">No links yet. Create your first one below!</p>
-                      </td>
-                    </tr>
-                  `}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
           <!-- Create/Update form section -->
           <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in">
             <div class="px-6 py-5 border-b border-gray-200 dark:border-gray-700">
@@ -316,16 +306,43 @@ function adminPage(links) {
                   <label for="slug-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Slug
                   </label>
+                  <div class="flex gap-2">
+                    <input
+                      type="text"
+                      id="slug-input"
+                      name="slug"
+                      required
+                      placeholder="e.g. q76hi"
+                      class="block flex-1 px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200"
+                    />
+                    <button
+                      type="button"
+                      onclick="generateSlug()"
+                      class="inline-flex items-center px-4 py-3 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-150 whitespace-nowrap"
+                      title="Generate random slug"
+                    >
+                      <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                      </svg>
+                    </button>
+                  </div>
+                  <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                    The short code that will appear in your QR URL
+                  </p>
+                </div>
+                <div>
+                  <label for="name-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Name / Description (Optional)
+                  </label>
                   <input
                     type="text"
-                    id="slug-input"
-                    name="slug"
-                    required
-                    placeholder="e.g. q76hi"
+                    id="name-input"
+                    name="name"
+                    placeholder="e.g. Main entrance poster, Welcome desk flyer"
                     class="block w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200"
                   />
                   <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                    The short code that will appear in your QR URL
+                    Help remember where this QR code has been printed or used
                   </p>
                 </div>
                 <div>
@@ -364,6 +381,50 @@ function adminPage(links) {
                 </div>
               </div>
             </form>
+          </div>
+
+          <!-- Existing links section -->
+          <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden animate-fade-in">
+            <div class="px-6 py-5 border-b border-gray-200 dark:border-gray-700">
+              <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                Existing Links
+              </h2>
+              <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                Manage your QR code redirects
+              </p>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-900/50">
+                  <tr>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Slug
+                    </th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Target URL
+                    </th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      QR Code
+                    </th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  ${rows || `
+                    <tr>
+                      <td colspan="4" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                        <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+                        </svg>
+                        <p class="text-sm">No links yet. Create your first one above!</p>
+                      </td>
+                    </tr>
+                  `}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </main>
@@ -468,9 +529,10 @@ function adminPage(links) {
         }
       });
     
-      function editLink(slug, url) {
+      function editLink(slug, url, name) {
         document.getElementById('slug-input').value = slug;
         document.getElementById('url-input').value = url;
+        document.getElementById('name-input').value = name || '';
         document.getElementById('slug-input').focus();
         
         // Smooth scroll to form
@@ -487,6 +549,7 @@ function adminPage(links) {
       function editDefault(url) {
         document.getElementById('slug-input').value = '_default';
         document.getElementById('url-input').value = url;
+        document.getElementById('name-input').value = '';
         document.getElementById('url-input').focus();
         
         // Smooth scroll to form
@@ -503,7 +566,24 @@ function adminPage(links) {
       function clearForm() {
         document.getElementById('slug-input').value = '';
         document.getElementById('url-input').value = '';
+        document.getElementById('name-input').value = '';
         document.getElementById('slug-input').focus();
+      }
+      
+      async function generateSlug() {
+        try {
+          const response = await fetch('/admin/generate-slug');
+          const data = await response.json();
+          
+          if (data.error) {
+            alert('Failed to generate slug: ' + data.error);
+            return;
+          }
+          
+          document.getElementById('slug-input').value = data.slug;
+        } catch (error) {
+          alert('Failed to generate slug: ' + error.message);
+        }
       }
     </script>
   `;
