@@ -1,6 +1,6 @@
 const express = require('express');
 const session = require('express-session');
-const FileStore = require('session-file-store')(session);
+const JSONStore = require('express-session-json')(session);
 const fs = require('fs');
 const path = require('path');
 const { loginPage, adminPage } = require('./views/templates');
@@ -19,10 +19,8 @@ app.use(express.static('public'));
 
 app.use(
     session({
-        store: new FileStore({
+        store: new JSONStore({
             path: path.join(__dirname, 'sessions'),
-            ttl: 86400, // 24 hours in seconds
-            retries: 0,
         }),
         secret: process.env.SESSION_SECRET || 'super-secret-change-me',
         resave: false,
@@ -58,6 +56,7 @@ function saveLinks() {
 
 loadLinks();
 
+// --- Auth middleware ---
 function requireAuth(req, res, next) {
     if (req.session && req.session.loggedIn) {
         return next();
