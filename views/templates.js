@@ -132,6 +132,18 @@ function adminPage(links) {
           </a>
         </td>
         <td class="px-6 py-4">
+          <button
+            type="button"
+            onclick="showQRCode('${slug}')"
+            class="inline-flex items-center px-3 py-1.5 border border-green-300 dark:border-green-700 text-sm font-medium rounded-md text-green-700 dark:text-green-300 bg-white dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-150"
+          >
+            <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
+            </svg>
+            QR Code
+          </button>
+        </td>
+        <td class="px-6 py-4">
           <div class="flex gap-2">
             <button
               type="button"
@@ -265,6 +277,9 @@ function adminPage(links) {
                       Target URL
                     </th>
                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      QR Code
+                    </th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
@@ -272,7 +287,7 @@ function adminPage(links) {
                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   ${rows || `
                     <tr>
-                      <td colspan="3" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                      <td colspan="4" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                         <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
                         </svg>
@@ -352,9 +367,107 @@ function adminPage(links) {
           </div>
         </div>
       </main>
+
+      <!-- QR Code Modal -->
+      <div id="qr-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onclick="closeQRModal(event)">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 transform transition-all" onclick="event.stopPropagation()">
+          <div class="flex justify-between items-center mb-6">
+            <h3 class="text-2xl font-bold text-gray-900 dark:text-gray-100">QR Code</h3>
+            <button onclick="closeQRModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+              <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+          
+          <div id="qr-content" class="text-center">
+            <div class="animate-pulse">
+              <div class="h-64 bg-gray-200 dark:bg-gray-700 rounded-lg mb-4"></div>
+              <p class="text-gray-500 dark:text-gray-400">Generating QR code...</p>
+            </div>
+          </div>
+          
+          <div id="qr-actions" class="hidden mt-6 space-y-3">
+            <a id="qr-download" download="qr-code.png" class="block w-full text-center px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-medium rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+              <svg class="inline h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              Download QR Code
+            </a>
+            <p id="qr-url" class="text-xs text-gray-500 dark:text-gray-400 break-all"></p>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script>
+      async function showQRCode(slug) {
+        const modal = document.getElementById('qr-modal');
+        const content = document.getElementById('qr-content');
+        const actions = document.getElementById('qr-actions');
+        const download = document.getElementById('qr-download');
+        const urlDisplay = document.getElementById('qr-url');
+        
+        // Show modal with loading state
+        modal.classList.remove('hidden');
+        content.innerHTML = \`
+          <div class="animate-pulse">
+            <div class="h-64 bg-gray-200 dark:bg-gray-700 rounded-lg mb-4"></div>
+            <p class="text-gray-500 dark:text-gray-400">Generating QR code...</p>
+          </div>
+        \`;
+        actions.classList.add('hidden');
+        
+        try {
+          const response = await fetch(\`/admin/qr/\${slug}\`);
+          const data = await response.json();
+          
+          if (data.error) {
+            throw new Error(data.error);
+          }
+          
+          // Display QR code
+          content.innerHTML = \`
+            <div class="bg-white p-4 rounded-lg inline-block shadow-lg">
+              <img src="\${data.qrCode}" alt="QR Code for \${slug}" class="w-64 h-64" />
+            </div>
+            <p class="mt-4 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <code class="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">\${slug}</code>
+            </p>
+          \`;
+          
+          // Set download link
+          download.href = data.qrCode;
+          download.download = \`qr-\${slug}.png\`;
+          urlDisplay.textContent = data.url;
+          actions.classList.remove('hidden');
+          
+        } catch (error) {
+          content.innerHTML = \`
+            <div class="text-red-600 dark:text-red-400">
+              <svg class="h-12 w-12 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <p>Failed to generate QR code</p>
+              <p class="text-sm mt-2">\${error.message}</p>
+            </div>
+          \`;
+        }
+      }
+      
+      function closeQRModal(event) {
+        if (!event || event.target.id === 'qr-modal') {
+          document.getElementById('qr-modal').classList.add('hidden');
+        }
+      }
+      
+      // Close modal on Escape key
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          closeQRModal();
+        }
+      });
+    
       function editLink(slug, url) {
         document.getElementById('slug-input').value = slug;
         document.getElementById('url-input').value = url;

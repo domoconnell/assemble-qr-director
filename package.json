@@ -21,9 +21,11 @@
   },
   "homepage": "https://github.com/domoconnell/assemble-qr-director#readme",
   "dependencies": {
+    "canvas": "^3.2.0",
     "cookie-parser": "^1.4.7",
     "express": "^5.1.0",
-    "fs-extra": "^11.3.2"
+    "fs-extra": "^11.3.2",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.22",

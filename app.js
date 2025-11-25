@@ -1,5 +1,6 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
+const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
 const { loginPage, adminPage } = require('./views/templates');
@@ -130,6 +131,67 @@ app.post('/admin/save', requireAuth, (req, res) => {
     saveLinks();
 
     res.redirect('/admin');
+});
+
+// QR code generation endpoint
+app.get('/admin/qr/:slug', requireAuth, async (req, res) => {
+    const { slug } = req.params;
+    const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
+    const targetUrl = `${baseUrl}/${slug}`;
+
+    try {
+        const { createCanvas, loadImage } = require('canvas');
+
+        // Generate QR code with custom styling
+        const qrCodeDataUrl = await QRCode.toDataURL(targetUrl, {
+            errorCorrectionLevel: 'H', // High error correction for logo overlay
+            type: 'image/png',
+            width: 500,
+            margin: 2,
+            color: {
+                dark: '#1d1d1b',  // Dark charcoal (Assemble branding)
+                light: '#ffffff'  // White background
+            }
+        });
+
+        // Load the QR code and logo
+        const qrImage = await loadImage(qrCodeDataUrl);
+        const logoPath = path.join(__dirname, 'public', 'logo.png');
+        const logo = await loadImage(logoPath);
+
+        // Create canvas and overlay logo
+        const canvas = createCanvas(qrImage.width, qrImage.height);
+        const ctx = canvas.getContext('2d');
+
+        // Draw QR code
+        ctx.drawImage(qrImage, 0, 0);
+
+        // Calculate logo size (about 20% of QR code size)
+        const logoSize = Math.floor(qrImage.width * 0.2);
+        const logoX = (qrImage.width - logoSize) / 2;
+        const logoY = (qrImage.height - logoSize) / 2;
+
+        // Draw white background circle for logo
+        const bgSize = logoSize * 1.2;
+        const bgX = qrImage.width / 2;
+        const bgY = qrImage.height / 2;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(bgX, bgY, bgSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw logo
+        ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
+
+        // Convert to data URL
+        const finalQRCode = canvas.toDataURL('image/png');
+
+        // Return as JSON so we can display it in the admin page
+        res.json({ qrCode: finalQRCode, url: targetUrl });
+    } catch (err) {
+        console.error('QR code generation error:', err);
+        res.status(500).json({ error: 'Failed to generate QR code' });
+    }
 });
 
 app.post('/admin/delete', requireAuth, (req, res) => {
