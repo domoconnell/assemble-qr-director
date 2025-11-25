@@ -21,14 +21,25 @@ app.use(cookieParser(COOKIE_SECRET));
 
 let links = {};
 
+// --- Load/Save links functions ---
+// Links are stored in memory and persisted to file on changes
+// File is ONLY read at server startup, not during normal operation
 function loadLinks() {
     if (fs.existsSync(LINKS_FILE)) {
-        const raw = fs.readFileSync(LINKS_FILE, 'utf-8');
-        links = JSON.parse(raw || '{}');
+        try {
+            const raw = fs.readFileSync(LINKS_FILE, 'utf-8');
+            links = JSON.parse(raw || '{}');
+            console.log(`[STARTUP] Loaded ${Object.keys(links).length} links from file`);
+        } catch (err) {
+            console.error('[STARTUP] Error loading links file:', err);
+            links = {};
+        }
     } else {
         links = {};
+        console.log('[STARTUP] No links file found, starting with empty links');
     }
 
+    // Ensure default link exists
     if (!links._default) {
         links._default = 'https://www.google.com';
         saveLinks();
@@ -37,17 +48,14 @@ function loadLinks() {
 
 function saveLinks() {
     try {
-        // Write to a temporary file first, then rename (atomic operation)
-        const tempFile = LINKS_FILE + '.tmp';
-        fs.writeFileSync(tempFile, JSON.stringify(links, null, 2), 'utf-8');
-        fs.renameSync(tempFile, LINKS_FILE);
-    } catch (err) {
-        console.error('Error saving links:', err);
-        // Try direct write as fallback
         fs.writeFileSync(LINKS_FILE, JSON.stringify(links, null, 2), 'utf-8');
+        console.log(`[PERSIST] Saved ${Object.keys(links).length} links to file`);
+    } catch (err) {
+        console.error('[PERSIST] Error saving links:', err);
     }
 }
 
+// Load links once at startup
 loadLinks();
 
 // --- Auth middleware ---
@@ -122,8 +130,7 @@ app.get('/admin/logout', (req, res) => {
 });
 
 app.get('/admin', requireAuth, (req, res) => {
-    // Reload links from file to ensure we have the latest data
-    loadLinks();
+    // Use in-memory links directly - no file reading during normal operation
     setNoCache(res);
     res.send(adminPage(links));
 });
