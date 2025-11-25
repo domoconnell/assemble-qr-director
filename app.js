@@ -41,18 +41,15 @@ function loadLinks() {
             }
 
             if (needsSave) {
-                console.log('[STARTUP] Migrated old link format to new format');
                 saveLinks();
             }
 
-            console.log(`[STARTUP] Loaded ${Object.keys(links).length} links from file`);
         } catch (err) {
             console.error('[STARTUP] Error loading links file:', err);
             links = {};
         }
     } else {
         links = {};
-        console.log('[STARTUP] No links file found, starting with empty links');
     }
 
     // Ensure default link exists
@@ -68,7 +65,6 @@ function loadLinks() {
 function saveLinks() {
     try {
         fs.writeFileSync(LINKS_FILE, JSON.stringify(links, null, 2), 'utf-8');
-        console.log(`[PERSIST] Saved ${Object.keys(links).length} links to file`);
     } catch (err) {
         console.error('[PERSIST] Error saving links:', err);
     }
@@ -214,12 +210,12 @@ app.get('/admin/qr/:slug', requireAuth, async (req, res) => {
         ctx.drawImage(qrImage, 0, 0);
 
         // Calculate logo size (about 20% of QR code size)
-        const logoSize = Math.floor(qrImage.width * 0.2);
+        const logoSize = Math.floor(qrImage.width * 0.15);
         const logoX = (qrImage.width - logoSize) / 2;
         const logoY = (qrImage.height - logoSize) / 2;
 
         // Draw white background circle for logo
-        const bgSize = logoSize * 1.2;
+        const bgSize = logoSize * 1.5;
         const bgX = qrImage.width / 2;
         const bgY = qrImage.height / 2;
         ctx.fillStyle = '#ffffff';
