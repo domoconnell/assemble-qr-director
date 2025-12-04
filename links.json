@@ -13,5 +13,15 @@
     "url": "https://www.assemblechurch.com",
     "name": "Giving Card",
     "favorite": true
+  },
+  "apitest": {
+    "url": "https://updated-example.com",
+    "name": "Updated API Test",
+    "favorite": false
+  },
+  "example": {
+    "url": "https://example.com",
+    "name": "Optional Name",
+    "favorite": false
   }
 }

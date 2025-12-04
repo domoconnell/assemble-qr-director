@@ -1,5 +1,6 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
+const cors = require('cors');
 const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
@@ -12,20 +13,23 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin'; // set in env in prod
 const COOKIE_SECRET = process.env.COOKIE_SECRET || 'super-secret-change-me';
+const API_KEY = process.env.API_KEY || 'af6ecdc76fc2ebb257dc0267bfe87d6912eac4c17cacaea28ba24cbabd2b961b';
 const LINKS_FILE = path.join(__dirname, 'links.json');
 
 // --- Basic middleware ---
+app.use(cors()); // Enable CORS for all routes
+app.use(express.json()); // Parse JSON bodies for API requests
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 app.use(cookieParser(COOKIE_SECRET));
 
-let links = {};
-
 // --- Load/Save links functions ---
-// Links are stored in memory and persisted to file on changes
-// File is ONLY read at server startup, not during normal operation
+// Links are read from file on EVERY operation to ensure consistency
+// across multiple server instances in load-balanced deployments
 // Link structure: { url: string, name?: string, favorite?: boolean }
 function loadLinks() {
+    let links = {};
+
     if (fs.existsSync(LINKS_FILE)) {
         try {
             const raw = fs.readFileSync(LINKS_FILE, 'utf-8');
@@ -41,28 +45,28 @@ function loadLinks() {
             }
 
             if (needsSave) {
-                saveLinks();
+                saveLinks(links);
             }
 
         } catch (err) {
-            console.error('[STARTUP] Error loading links file:', err);
+            console.error('[LOAD] Error loading links file:', err);
             links = {};
         }
-    } else {
-        links = {};
     }
 
     // Ensure default link exists
     if (!links._default) {
         links._default = { url: 'https://www.assemblechurch.com', name: 'Default', favorite: false };
-        saveLinks();
+        saveLinks(links);
     } else if (typeof links._default === 'string') {
         links._default = { url: links._default, name: 'Default', favorite: false };
-        saveLinks();
+        saveLinks(links);
     }
+
+    return links;
 }
 
-function saveLinks() {
+function saveLinks(links) {
     try {
         fs.writeFileSync(LINKS_FILE, JSON.stringify(links, null, 2), 'utf-8');
     } catch (err) {
@@ -70,15 +74,20 @@ function saveLinks() {
     }
 }
 
-// Load links once at startup
-loadLinks();
-
 // --- Auth middleware ---
 function requireAuth(req, res, next) {
     if (req.signedCookies.authenticated === 'true') {
         return next();
     }
     return res.redirect('/admin/login');
+}
+
+function requireApiKey(req, res, next) {
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey || apiKey !== API_KEY) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid or missing API key' });
+    }
+    next();
 }
 
 function setNoCache(res) {
@@ -90,7 +99,65 @@ function setNoCache(res) {
     res.setHeader('Expires', '0');
 }
 
+// --- API Endpoints ---
+app.post('/api/link', requireApiKey, (req, res) => {
+    const { slug, url, name } = req.body;
+
+    // Validate required fields
+    if (!slug || !url) {
+        return res.status(400).json({
+            error: 'Bad Request: slug and url are required',
+            received: { slug: !!slug, url: !!url }
+        });
+    }
+
+    const cleanSlug = slug.trim();
+    const cleanUrl = url.trim();
+    const cleanName = (name || '').trim();
+
+    // Prevent modification of _default via API
+    if (cleanSlug === '_default') {
+        return res.status(403).json({ error: 'Forbidden: Cannot modify _default link via API' });
+    }
+
+    // Load current links
+    const links = loadLinks();
+    const isUpdate = !!links[cleanSlug];
+
+    // Preserve favorite status if updating
+    const existingFavorite = links[cleanSlug]?.favorite || false;
+
+    // Create or update link
+    links[cleanSlug] = {
+        url: cleanUrl,
+        name: cleanName,
+        favorite: existingFavorite
+    };
+
+    // Save to file
+    saveLinks(links);
+
+    // Return appropriate status
+    if (isUpdate) {
+        return res.status(200).json({
+            message: 'Link updated successfully',
+            slug: cleanSlug,
+            url: cleanUrl,
+            name: cleanName
+        });
+    } else {
+        return res.status(201).json({
+            message: 'Link created successfully',
+            slug: cleanSlug,
+            url: cleanUrl,
+            name: cleanName
+        });
+    }
+});
+
+// --- Public Routes ---
 app.get('/', (req, res) => {
+    const links = loadLinks();
     const defaultLink = links._default || { url: 'https://www.assemblechurch.com' };
     const defaultUrl = typeof defaultLink === 'string' ? defaultLink : defaultLink.url;
     setNoCache(res);
@@ -107,6 +174,7 @@ app.get('/:slug', (req, res, next) => {
         return res.status(404).send('QR code not found');
     }
 
+    const links = loadLinks();
     const linkData = links[slug];
 
     if (!linkData) {
@@ -147,7 +215,8 @@ app.get('/admin/logout', (req, res) => {
 });
 
 app.get('/admin', requireAuth, (req, res) => {
-    // Use in-memory links directly - no file reading during normal operation
+    // Read fresh data from file on every request
+    const links = loadLinks();
     setNoCache(res);
     res.send(adminPage(links));
 });
@@ -163,6 +232,9 @@ app.post('/admin/save', requireAuth, (req, res) => {
     const cleanUrl = url.trim();
     const cleanName = (name || '').trim();
 
+    // Read current state from file
+    const links = loadLinks();
+
     // Preserve favorite status if updating existing link
     const existingFavorite = links[cleanSlug]?.favorite || false;
 
@@ -171,7 +243,7 @@ app.post('/admin/save', requireAuth, (req, res) => {
         name: cleanName,
         favorite: existingFavorite
     };
-    saveLinks();
+    saveLinks(links);
 
     res.redirect('/admin');
 });
@@ -244,19 +316,27 @@ app.get('/admin/qr/:slug', requireAuth, async (req, res) => {
 
 app.post('/admin/delete', requireAuth, (req, res) => {
     const { slug } = req.body;
+
+    // Read current state from file
+    const links = loadLinks();
+
     if (slug && links[slug]) {
         delete links[slug];
-        saveLinks();
+        saveLinks(links);
     }
     res.redirect('/admin');
 });
 
 app.post('/admin/toggle-favorite', requireAuth, (req, res) => {
     const { slug } = req.body;
+
+    // Read current state from file
+    const links = loadLinks();
+
     if (slug && links[slug]) {
         const linkData = links[slug];
         linkData.favorite = !linkData.favorite;
-        saveLinks();
+        saveLinks(links);
     }
     res.redirect('/admin');
 });
@@ -267,6 +347,9 @@ app.get('/admin/generate-slug', requireAuth, (req, res) => {
     let slug;
     let attempts = 0;
     const maxAttempts = 100;
+
+    // Read current state from file to check for conflicts
+    const links = loadLinks();
 
     do {
         const length = Math.floor(Math.random() * 4) + 5; // 5-8 characters
